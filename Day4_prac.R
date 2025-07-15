@@ -75,10 +75,47 @@ mean(pred1 - pred0)
 
 
 
-library(tidyverse)
-library(pcalg)
 library(dagitty)
 library(ggdag)
 library(ggplot2)
 library(igraph)
+#install.packages('pcalg','ggdag','igraph', 'causaldisco')
+library(tidyverse)
+ 
+# Load and or read in the data
+d_NSDUH2021 <- readRDS("~/Downloads/Computational_Biology/d_NSDUH2021.Rdata")
+ 
+### Data preparation
+ 
+d_model <- d_NSDUH2021 %>% 
+  filter(MaritalStatus == "Married") %>% # filter by marrital status
+  select(Gender, Education, 
+         AlcEver, SmokeEver,  HashEver, CocaineEver, HashUsed30d) |> 
+  na.omit()
+d_model
+ 
+set.seed(1)
+x <- d_model %>% 
+  #sample_n(1000) %>% # Do not sample
+  mutate_all(as.character) %>% mutate_all(as.factor) %>% 
+                mutate_all(as.integer) %>% 
+                mutate_all(~ . - 1L)
+#head(x)
+#head(nlev)
+nlev <- unname(apply(x,2,function(x) length(unique(x))))
+suf_stat <- list(dm=x,nlev=nlev,adaptDF=FALSE)
+ 
+##### Run the PC algorithm
+cpdag <- pc(suffStat = suf_stat,
+            indepTest = disCItest,
+            alpha = 0.01, # Vary the alpha to test which edges needs to be removed
+            labels = colnames(x)
+  )
+### Plot the model
+ig <- graph_from_graphnel(cpdag@graph)
+el <- igraph::as_edgelist(ig)
+G <- dagitty(paste0('dag{',paste0(apply(el,1,function(x) paste0(x[1],"->",x[2])),
+                                  collapse = '\n'),
+                    "}"))
+G |> tidy_dagitty(layout = 'kk')|> ggdag() + theme_dag()
 
